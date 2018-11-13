@@ -1,0 +1,146 @@
+---
+title: "PA1_template"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+###Loading and preprocessing the data
+
+
+```{r }
+dataset_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip" 
+download.file(dataset_url, "Activity.zip")
+unzip("Activity.zip", exdir = "Activity")
+
+Act <- data.table::fread("Activity/activity.csv") 
+Act[, date := as.POSIXct(date, format = "%Y-%m-%d")] #Change character tot  to date
+str(Act)
+
+```
+
+### Calculate the total number of steps taken per day
+
+```{r}
+Day_total <- aggregate(steps ~ date, data = Act, sum, na.rm = TRUE)
+with(Day_total,plot(date,steps,
+              type = "h",
+              lwd = 4,
+              col="red",
+              main="Total steps per day",
+              xlab="", 
+              ylab="Steps"))
+```
+
+
+```{r}
+mean <- as.integer(mean(Day_total$steps))
+median <- median(Day_total$steps)
+```
+
+The mean is `r mean` and the median is `r median` steps per day
+
+### Make a time series plot (i.e. type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+
+```{r}
+Act_CC <- Act[complete.cases(Act), ]
+
+Interval_mean = aggregate(steps ~ interval, data = Act_CC, FUN = "mean", na.rm = TRUE)
+
+
+with(Interval_mean,plot(interval,steps,
+                        type = "l",
+                        lwd = 4,
+                        col="red",
+                        main="Avg steps per 5 min interval",
+                        xlab="Interval", 
+                        ylab="Steps"))
+```
+
+### Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r}
+max_steps <- Interval_mean$interval[max.col(t(Interval_mean$steps))] 
+```
+
+The max number of steps is found in the interval: `r max_steps` 
+
+### Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r}
+NA_Count <- Act[is.na(steps), .N ] #Number of missing values
+Total_Rows <- Act[, .N ] #Number of rows
+NA_Percentage <- round((NA_Count / Total_Rows) *100,2)
+
+```
+
+The number of missing values is `r NA_Count` (`r NA_Percentage`%)
+
+### Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+I decided to replace the missing values with te avarage number of steps of that interval
+```{r}
+Act_NA <- data.frame(Act)
+
+library(zoo)
+Act_NA <- transform(Act_NA, steps = na.aggregate(steps, by = interval)) 
+summary(Act_NA)
+```
+
+### Make a histogram of the total number of steps taken each day 
+
+```{r}
+Day_total_NA <- aggregate(steps ~ date, data = Act_NA, sum)
+
+with(Day_total_NA,plot(date,steps,
+                    type = "h",
+                    lwd = 4,
+                    col="red",
+                    main="Total steps per day",
+                    xlab="", 
+                    ylab="Steps"))
+```
+
+### Calculate and report the mean and median total number of steps taken per day. 
+
+```{r}
+Mean_after <- as.integer(mean(Day_total_NA$steps))
+Median_after <- as.integer(median(Day_total_NA$steps))
+```
+
+The mean after handling the missing values is `r Mean_after` and the median is `r Median_after` 
+
+### Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+
+```
+
+
+
+```{r}
+Sys.setlocale("LC_TIME", "en_US") #Set sys language to English
+
+
+Act_NA$Weekday <- as.factor(weekdays(Act_NA$date))
+Act_NA$Weekend_ind = as.factor(ifelse(Act_NA$Weekday == "Saturday" | Act_NA$Weekday == "Sunday" ,"Weekend","Weekday"))
+
+Weekend_interval <- aggregate(steps ~  interval + Weekend_ind, data = Act_NA, FUN = "mean")
+Weekend_interval$steps <- as.integer(Weekend_interval$steps)
+
+library(ggplot2)
+
+ggplot(Weekend_interval, aes(interval, steps)) +
+  geom_line(stat = "identity", aes(colour = Weekend_ind)) +
+  theme_gray() +
+  facet_grid(Weekend_ind ~ ., scales="fixed", space="fixed") +
+  labs(x="Interval", y=expression("Steps")) +
+  ggtitle("Weekday versus Weekend days")
+
+```
+
+
